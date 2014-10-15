@@ -2,12 +2,10 @@
 
 Get to Statsd: forward simple statistics to a statsd server.
 
-[![Build Status][1]][2] [![GoDoc][3]][4]
+[![Build Status][1]][2]
 
 [1]: https://secure.travis-ci.org/peterbourgon/g2s.png
 [2]: http://www.travis-ci.org/peterbourgon/g2s
-[3]: https://godoc.org/github.com/peterbourgon/g2s?status.svg
-[4]: https://godoc.org/github.com/peterbourgon/g2s
 
 # Usage
 
@@ -29,7 +27,19 @@ s.Gauge(1.0, "my.silly.status", "green")
 
 If you use a standard UDP connection to a statsd server, all 'update'-class
 functions are goroutine safe. They should return quickly, but they're safe to
-fire in a seperate goroutine.
+fire in a separate goroutine.
+
+The default timeout is 2 seconds, you can change that by using "DialTimeout":
+
+```go
+s, err := g2s.DialTimeout("udp", "statsd-server:8125", time.Second)
+if err != nil {
+	// do something
+}
+```
+
+If you use the built-in Dial or DialTimeout function g2s will attempt to reconnect
+when a write fails. This will happen rarely, if interface becomes invalid for a time.
 
 # Upgrading API
 
