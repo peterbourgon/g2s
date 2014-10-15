@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"net"
 	"time"
+	"sync"
 )
 
 const (
@@ -20,20 +21,49 @@ type Statter interface {
 
 type statsd struct {
 	w io.Writer
+	proto string
+	endpoint string
+	timeout time.Duration
+	lock sync.RWMutex // On message sends, only a read lock will be requested, but on reconnects a write lock will protect 'w'.
 }
 
 // Dial takes the same parameters as net.Dial, ie. a transport protocol
 // (typically "udp") and an endpoint. It returns a new Statsd structure,
-// ready to use.
+// ready to use. Timeout is 2 seconds.
 //
-// Note that g2s currently performs no management on the connection it creates.
-func Dial(proto, endpoint string) (Statter, error) {
-	c, err := net.DialTimeout(proto, endpoint, 2*time.Second)
+// g2s will attemt to reconnect on write failures
+func Dial(proto, endpoint string) (Statter, error) {	
+	c, err := net.DialTimeout(proto, endpoint, time.Second * 2)
 	if err != nil {
 		return nil, err
 	}
-	return New(c)
+	return &statsd {
+		w: c,
+		proto: proto,
+		endpoint: endpoint,
+		timeout: time.Second * 2,
+	}, nil
 }
+
+// DialTimeout takes the same parameters as net.DialTimeout, ie. a transport protocol
+// (typically "udp") and an endpoint, as well as a timeout.
+// It returns a new Statsd structure, ready to use.
+// 
+//
+// g2s will attemt to reconnect on write failures.
+func DialTimeout(proto, endpoint string, timeout time.Duration) (Statter, error) {	
+	c, err := net.DialTimeout(proto, endpoint, timeout)
+	if err != nil {
+		return nil, err
+	}
+	return &statsd {
+		w: c,
+		proto: proto,
+		endpoint: endpoint,
+		timeout: timeout,
+	}, nil
+}
+
 
 // New constructs a Statsd structure which will write statsd-protocol messages
 // into the given io.Writer. New is intended to be used by consumers who want
@@ -76,18 +106,45 @@ func bufferize(sendables []sendable, max int) [][]byte {
 // will be no larger than MAX_PACKET_SIZE. It then writes them, one by one,
 // into the Statsd io.Writer.
 func (s *statsd) publish(msgs []sendable) {
+	s.lock.RLock()
+
 	for _, buf := range bufferize(msgs, MAX_PACKET_SIZE) {
 		// In the base case, when the Statsd struct is backed by a net.Conn,
 		// "Multiple goroutines may invoke methods on a Conn simultaneously."
 		//   -- http://golang.org/pkg/net/#Conn
 		// Otherwise, Bring Your Own Synchronization™.
 		n, err := s.w.Write(buf)
-		if err != nil {
+		if err != nil && s.endpoint == "" {
 			log.Printf("g2s: publish: %s", err)
+		} else if err != nil {
+			// Attempt one reconnect before failing
+			s.lock.RUnlock()
+			err = s.reconnect()
+			s.lock.RLock()
+			if err != nil {
+				log.Printf("g2s: reconnect: %s", err)
+			}
+			n, err = s.w.Write(buf)
+			if err != nil {
+				log.Printf("g2s: publish: %s (after reconnect)", err)
+			}
 		} else if n != len(buf) {
 			log.Printf("g2s: publish: short send: %d < %d", n, len(buf))
 		}
 	}
+	s.lock.RUnlock()
+}
+
+// reconnect will attempt to reconnect the original connection after a write failure.
+// 
+// The mutex will be locked for writing, and incoming attempts will be blocked until
+// the new connection has been stored.
+func (s *statsd) reconnect() (err error) {
+	s.lock.Lock()
+	log.Printf("g2s: Reconnecting")
+	s.w, err = net.DialTimeout(s.proto, s.endpoint, s.timeout)
+	s.lock.Unlock()
+	return
 }
 
 // maybeSample returns a sampling structure and true if a pseudorandom number

@@ -29,7 +29,19 @@ s.Gauge(1.0, "my.silly.status", "green")
 
 If you use a standard UDP connection to a statsd server, all 'update'-class
 functions are goroutine safe. They should return quickly, but they're safe to
-fire in a seperate goroutine.
+fire in a separate goroutine.
+
+The default timeout is 2 seconds, you can change that by using "DialTimeout":
+
+```go
+s, err := g2s.DialTimeout("udp", "statsd-server:8125", time.Second)
+if err != nil {
+	// do something
+}
+```
+
+If you use the built-in Dial or DialTimeout function g2s will attempt to reconnect
+when a write fails. This will happen rarely, if interface becomes invalid for a time.
 
 # Upgrading API
 
