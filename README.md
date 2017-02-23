@@ -32,7 +32,7 @@ API key to send metrics to your statsd service) just use `DialWithPrefix` instea
 when instantiating your statsd struct:
 
 ```go
-s, err := g2s.Dial("udp", "statsd-server:8125", "my-cool-prefix")
+s, err := g2s.DialWithPrefix("udp", "statsd-server:8125", "my-cool-prefix")
 if err != nil {
 	// do something
 }
