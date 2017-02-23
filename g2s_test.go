@@ -11,7 +11,7 @@ import (
 
 func TestCounter(t *testing.T) {
 	b := &bytes.Buffer{}
-	s, err := New(b)
+	s, err := New(b, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,9 +23,23 @@ func TestCounter(t *testing.T) {
 	}
 }
 
+func TestPrefixedCounter(t *testing.T) {
+	b := &bytes.Buffer{}
+	s, err := New(b, "deadbeef")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s.Counter(1.0, "gorets", 1)
+
+	if expected, got := "deadbeef.gorets:1|c", b.String(); expected != got {
+		t.Errorf("expected %q, got %q", expected, got)
+	}
+}
+
 func TestTiming(t *testing.T) {
 	b := &bytes.Buffer{}
-	s, err := New(b)
+	s, err := New(b, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,9 +51,23 @@ func TestTiming(t *testing.T) {
 	}
 }
 
+func TestPrefixedTiming(t *testing.T) {
+	b := &bytes.Buffer{}
+	s, err := New(b, "deadbeef")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s.Timing(1.0, "glork", 320*time.Millisecond)
+
+	if expected, got := "deadbeef.glork:320|ms", b.String(); expected != got {
+		t.Errorf("expected %q, got %q", expected, got)
+	}
+}
+
 func TestGauge(t *testing.T) {
 	b := &bytes.Buffer{}
-	s, err := New(b)
+	s, err := New(b, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,9 +79,23 @@ func TestGauge(t *testing.T) {
 	}
 }
 
+func TestPrefixedGauge(t *testing.T) {
+	b := &bytes.Buffer{}
+	s, err := New(b, "deadbeef")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s.Gauge(1.0, "gaugor", "333")
+
+	if expected, got := "deadbeef.gaugor:333|g", b.String(); expected != got {
+		t.Errorf("expected %q, got %q", expected, got)
+	}
+}
+
 func TestMany(t *testing.T) {
 	b := &bytes.Buffer{}
-	s, err := New(b)
+	s, err := New(b, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +112,7 @@ func TestMany(t *testing.T) {
 
 func TestSamplingZero(t *testing.T) {
 	b := &bytes.Buffer{}
-	s, err := New(b)
+	s, err := New(b, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +135,7 @@ func (this *SliceWriter) Write(bytes []byte) (int, error) {
 
 func TestSampling(t *testing.T) {
 	b := &SliceWriter{}
-	s, err := New(b)
+	s, err := New(b, "")
 	if err != nil {
 		t.Fatal(err)
 	}
